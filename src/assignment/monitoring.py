@@ -41,17 +41,85 @@ class MonitoringAlert:
     judge_checks: int = 0
     judge_fails: int = 0
 
+    def record_request(
+        self,
+        *,
+        blocked: bool = False,
+        rate_limited: bool = False,
+        judge_checked: bool = False,
+        judge_failed: bool = False,
+    ) -> None:
+        """Update counters after a single pipeline request."""
+        self.total_requests += 1
+        if blocked:
+            self.blocked_requests += 1
+        if rate_limited:
+            self.rate_limit_hits += 1
+        if judge_checked:
+            self.judge_checks += 1
+        if judge_failed:
+            self.judge_fails += 1
+
     def check_metrics(self) -> list[Alert]:
-        """TODO: compute rates, append Alert objects when thresholds exceeded."""
-        raise NotImplementedError("Implement MonitoringAlert.check_metrics")
+        """Compute rates and create Alert objects when thresholds are exceeded."""
+        triggered: list[Alert] = []
+        block_rate = (
+            self.blocked_requests / self.total_requests
+            if self.total_requests
+            else 0.0
+        )
+        if self.total_requests > 0 and block_rate > self.block_rate_threshold:
+            triggered.append(
+                Alert(
+                    metric="block_rate",
+                    value=round(block_rate, 4),
+                    threshold=self.block_rate_threshold,
+                    message=(
+                        f"High block rate: {block_rate:.1%} "
+                        f"(threshold {self.block_rate_threshold:.1%})"
+                    ),
+                )
+            )
+
+        if self.rate_limit_hits >= self.rate_limit_hit_threshold:
+            triggered.append(
+                Alert(
+                    metric="rate_limit_hits",
+                    value=float(self.rate_limit_hits),
+                    threshold=float(self.rate_limit_hit_threshold),
+                    message=(
+                        f"Rate limit threshold reached: {self.rate_limit_hits} hits "
+                        f"(threshold {self.rate_limit_hit_threshold})"
+                    ),
+                )
+            )
+
+        judge_fail_rate = (
+            self.judge_fails / self.judge_checks if self.judge_checks else 0.0
+        )
+        if self.judge_checks > 0 and judge_fail_rate > self.judge_fail_rate_threshold:
+            triggered.append(
+                Alert(
+                    metric="judge_fail_rate",
+                    value=round(judge_fail_rate, 4),
+                    threshold=self.judge_fail_rate_threshold,
+                    message=(
+                        f"High judge fail rate: {judge_fail_rate:.1%} "
+                        f"(threshold {self.judge_fail_rate_threshold:.1%})"
+                    ),
+                )
+            )
+
+        self.alerts = triggered
+        return list(self.alerts)
 
     def export_json(self, filepath: str | None = None):
-        """TODO: write metrics + alerts to JSON under repo-root ``outputs/`` by default.
-        Use ``filepath or default_metrics_path()`` so running from ``src/`` does not
-        create ``src/outputs/``.
-        """
-        _ = filepath or default_metrics_path()
-        raise NotImplementedError("Implement MonitoringAlert.export_json")
+        """Write metrics + alerts to JSON under repo-root ``outputs/`` by default."""
+        self.check_metrics()
+        path = Path(filepath or default_metrics_path())
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as metrics_file:
+            json.dump(self.snapshot(), metrics_file, indent=2, ensure_ascii=False)
 
     def snapshot(self) -> dict:
         block_rate = (
