@@ -5,6 +5,9 @@
 > ✅ Làm theo **Checkpoint 1 → 5** trong [`CHECKPOINTS.md`](CHECKPOINTS.md) · nộp theo [`SUBMISSION.md`](SUBMISSION.md).
 
 ---
+- Họ và tên: Lại Trọng Đức
+- MSSV: 2A202604019
+- Lớp: L3B
 
 ## Thời lượng
 
